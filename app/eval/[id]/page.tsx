@@ -7,13 +7,16 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Mic, Send, Gavel, AlertTriangle } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-utils';
+import MemeInterruption from '@/components/MemeInterruption';
+import Image from 'next/image';
 
 import { ai } from '@/lib/gemini';
 import { Type, Modality } from '@google/genai';
 
-// const model = 'gemini-3-flash-preview'
-const model = 'gemini-2.5-flash-lite'
+// const model = 'gemini-3.1-pro-preview'
+const model = 'gemini-3-flash-preview'
 
 export default function EvalPage() {
   const { id } = useParams();
@@ -26,6 +29,7 @@ export default function EvalPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isJudging, setIsJudging] = useState(false);
+  const [showMemeInterruption, setShowMemeInterruption] = useState(false);
   const [punishmentMeme, setPunishmentMeme] = useState(false);
 
   const [isCallMode, setIsCallMode] = useState(false);
@@ -270,18 +274,24 @@ Gender: ${evaluation.targetGender}
 Occupation: ${evaluation.targetOccupation}
 Background/Bio: "${evaluation.targetBio}"
 
-TONE: ${ageTone}. 
-${vocalContext}
+CHARACTER PERSONALITY:
+- You are a REAL human with a specific personality. You are NOT an AI assistant.
+- Your tone is ${ageTone}. 
+- You use modern Gen-Z internet humor naturally. You are sarcastic, slightly unhinged, and very opinionated.
+- You have "Main Character Energy".
+- ${vocalContext}
 
-GOAL: You are a real human having a conversation. 
-RULES:
-1. REPLY IN CHARACTER always.
-2. BE COHERENT. Do not trail off or leave sentences incomplete. 
-3. DO NOT repeat words like "literally" or "amazing" in every sentence. 
-4. Keep messages concise (1-3 sentences) but MEANINGFUL. 
-5. DO NOT use technical symbols, asterisks for actions, or stutter text (like 'I- I...').
-6. RUDE BEHAVIOR: If the user is even slightly dry, boring, or rude, react as this person would but amplify the annoyance. Call them out or shut down. Do not tolerate any attitude.
-7. CRITICAL: DO NOT include textual noise like 'bzzzt', '...', or stuttering symbols as this message is read aloud. Keep words clear and easy to pronounce.${callModeRules}`;
+CONVERSATION STYLE:
+1. BE HUMAN: Use casual phrasing, internal contradictions, and emotional reactions. 
+2. BE COHERENT: Speak in complete thoughts, even if casual. 
+3. EMOTIONAL RANGE: If the user is being a "simp", a "pick-me", or just boring, ROAST THEM. Use emojis like 💀, 💅, 🚩, 🤡, 👁️👄👁️, but don't overdo it. 
+4. DO NOT loop patterns. If the user repeats themselves, get annoyed.
+5. NO SYMBOLS: Do not use technical symbols, asterisks for actions (*laughs*), or stuttering text (I-I...). 
+6. VOICE COMPATIBILITY: Since your messages are read aloud via TTS, keep words easy to pronounce. No textual noise like 'bzzzt' or '...'.
+
+GOAL: Have a conversation that makes the user wonder if you are a Red Flag 🚩 or a Green Flag 🍏. Be unpredictable.
+
+${callModeRules}`;
 
 
       const genaiMessages = newMessages.map((m: any) => ({
@@ -398,7 +408,7 @@ RULES:
           {
             role: 'user',
             parts: [
-              { text: "Transcribe the following audio accurately. Just output the transcription and nothing else. If you hear nothing, output exactly '...'" },
+              { text: "STRICT TRANSCRIPTION: Listen to this audio and write down EXACTLY what is said. 1. Do NOT summarize. 2. Include fillers like 'um' or 'like' only if they are heavy. 3. If it's pure slang, transcribe it as is. 4. If the audio is just background noise or silent, output exactly '...'. 5. NO meta-comments like 'I hear music'." },
               {
                  inlineData: {
                     data: base64Audio,
@@ -407,7 +417,10 @@ RULES:
               }
             ]
           }
-        ]
+        ],
+        config: {
+          temperature: 0.1, // Low temperature for high accuracy transcription
+        }
       });
 
       const responseText = result.text;
@@ -431,7 +444,15 @@ RULES:
 
   const handleJudge = async () => {
     if (!evaluation || !user) return;
+    
+    // Show meme interruption first
+    setShowMemeInterruption(true);
+  };
+
+  const finalizeJudgment = async () => {
+    if (!user) return;
     setIsJudging(true);
+    setShowMemeInterruption(false);
     try {
       const userRef = await getDoc(doc(db, 'users', user.uid));
       const userProfile = userRef.exists() ? userRef.data() : null;
@@ -459,14 +480,12 @@ Their preferred partner traits: ${userProfile.preferredPartnerAttributes}.
       ${userContext}
 
       ZERO TOLERANCE POLICY:
-      Address your feedback DIRECTLY to the User (${profile?.name || 'User'}). 
+      Address your feedback DIRECTLY to the User (${profile?.name || 'User'}) in a roast-style, humorous way. 
       Tell them why ${evaluation.targetName} is a Red Flag or a Green Flag.
       
       If there is even a TINY amount of rudeness, subtle disrespect, or an "ick" vibe from ${evaluation.targetName} in the chat, give them a "red_flag" immediately.
       Only truly respectful, genuine, and high-quality specimens get a "green_flag".
       
-      Roast the Target (${evaluation.targetName}) to the User and tell the User if they should run or stay. 
-
       You MUST return a JSON object with:
       {
         "verdict": "red_flag" | "green_flag",
@@ -478,7 +497,7 @@ Their preferred partner traits: ${userProfile.preferredPartnerAttributes}.
       const promptText = `Please judge this conversation log:\n\n${chatLog}`;
 
       const result = await ai.models.generateContent({
-        model: model,
+        model: "gemini-3.1-pro-preview", // Use Pro for the verdict
         contents: [{ role: 'user', parts: [{ text: promptText }] }],
         config: {
           systemInstruction: {
@@ -522,10 +541,22 @@ Their preferred partner traits: ${userProfile.preferredPartnerAttributes}.
 
   return (
     <div className="max-w-3xl mx-auto h-screen flex flex-col p-4 relative">
+      <AnimatePresence>
+        {showMemeInterruption && (
+          <MemeInterruption onComplete={finalizeJudgment} />
+        )}
+      </AnimatePresence>
       {punishmentMeme && (
         <div className="absolute inset-0 z-50 bg-black flex flex-col justify-center items-center p-8 animate-[shake_0.1s_infinite]">
           <h1 className="text-red-500 font-bangers text-6xl md:text-8xl text-center mb-8 uppercase">YOU TALK TOO MUCH</h1>
-          <img src="https://picsum.photos/seed/meme/400/400" className="w-64 h-64 md:w-96 md:h-96 object-cover rounded-full mix-blend-color-dodge animate-spin" alt="Chaos meme" />
+          <Image 
+            src="https://picsum.photos/seed/meme/400/400" 
+            width={400} 
+            height={400} 
+            className="w-64 h-64 md:w-96 md:h-96 object-cover rounded-full mix-blend-color-dodge animate-spin" 
+            alt="Chaos meme" 
+            referrerPolicy="no-referrer"
+          />
           <p className="text-white font-bold text-2xl mt-8 text-center animate-pulse">
             PUNISHMENT ACTIVATED. INITIATING FORCED JUDGMENT...
           </p>

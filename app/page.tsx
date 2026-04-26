@@ -13,7 +13,7 @@ import { AnimatePresence } from 'motion/react';
 
 import { ai } from '@/lib/gemini';
 
-const model = 'gemini-2.5-flash-lite'
+const model = 'gemini-3-flash-preview'
 
 export default function Home() {
   const { user, profile, loading } = useAuth();
@@ -107,7 +107,7 @@ export default function Home() {
              {
                role: 'user',
                parts: [
-                 { text: "Transcribe the following audio accurately. Also, analyze the 'vocal traits' (energy level, speed of speech, tone/vibe, and any specific slang or quirks). Output MUST be in this JSON format: { \"transcription\": \"...\", \"vocalTraits\": \"...\" }. If you hear nothing, return empty values." },
+                 { text: "AUDIO ANALYSIS: 1. Transcribe the audio exactly. 2. Analyze the 'vocal traits' (energy, speed, tone, unique vibes, slang used). Output MUST be JSON: { \"transcription\": \"...\", \"vocalTraits\": \"...\" }. Be brutal but accurate." },
                  {
                     inlineData: {
                        data: base64Audio,
@@ -118,7 +118,8 @@ export default function Home() {
              }
            ],
            config: {
-             responseMimeType: "application/json"
+             responseMimeType: "application/json",
+             temperature: 0.2
            }
          });
 

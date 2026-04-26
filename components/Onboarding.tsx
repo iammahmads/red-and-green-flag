@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-utils';
 
@@ -51,8 +51,7 @@ export default function Onboarding({ user, profile, onCancel }: { user: any, pro
         likes: formData.likes.trim(),
         dislikes: formData.dislikes.trim(),
         preferredPartnerAttributes: formData.preferredPartnerAttributes.trim(),
-        onboarded: true,
-        updatedAt: serverTimestamp()
+        onboarded: true
       });
       if (onCancel) onCancel();
     } catch (error) {
