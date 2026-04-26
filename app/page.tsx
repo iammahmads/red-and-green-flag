@@ -66,8 +66,8 @@ export default function Home() {
     return <Onboarding user={user} profile={profile || {}} onCancel={profile?.onboarded ? () => setIsEditingProfile(false) : undefined} />;
   }
 
-  const startEvaluation = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const startEvaluation = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!targetName.trim() || !targetAge || !targetOccupation.trim()) {
       alert("Name, Age, and Occupation are REQUIRED! Don't be lazy.");
       return;
@@ -179,7 +179,10 @@ export default function Home() {
         {showPunishment && (
           <JudgmentalFace 
             count={profile?.dailyCheckCount || 0} 
-            onClose={() => setShowPunishment(false)} 
+            onClose={() => {
+              setShowPunishment(false);
+              startEvaluation(); // Auto-start the simulation after dismissal
+            }} 
           />
         )}
       </AnimatePresence>

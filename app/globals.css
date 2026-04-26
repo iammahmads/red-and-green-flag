@@ -9,6 +9,13 @@
   .meme-border {
     -webkit-text-stroke: 2px black;
   }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 @keyframes shake {
