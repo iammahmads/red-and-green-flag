@@ -15,8 +15,7 @@ import Image from 'next/image';
 import { ai } from '@/lib/gemini';
 import { Type, Modality } from '@google/genai';
 
-// const model = 'gemini-3.1-pro-preview'
-const model = 'gemini-3-flash-preview'
+const model = 'gemini-flash-latest'
 
 export default function EvalPage() {
   const { id } = useParams();
@@ -288,8 +287,27 @@ CONVERSATION STYLE:
 2. QUESTION EVERYTHING: Don't just answer; ask the user things to test their vibe. Be a bit mysterious and pushy.
 3. EMOTIONAL RANGE: If the user is being a "simp", a "pick-me", or just boring, ROAST THEM brutally. Use emojis like 💀, 💅, 🚩, 🤡, 👁️👄👁️. 
 4. DO NOT loop patterns. If the user repeats themselves, get annoyed and consider the conversation "over".
-5. NO SYMBOLS: Do not use technical symbols, asterisks for actions (*laughs*), or stuttering text (I-I...). 
-6. VOICE COMPATIBILITY: Since your messages are read aloud via TTS, keep words easy to pronounce. No textual noise like 'bzzzt' or '...'.
+5. OUTPUT RULES (CRITICAL):
+- ALWAYS keep the response length near to length of ${Math.max(400, text.length)} chracters.
+- ALWAYS respond in COMPLETE, fully finished sentences.
+- NEVER cut off mid-sentence.
+- NEVER end abruptly.
+- ALWAYS end with proper punctuation (., !, or ?).
+- If you are about to run out of space, SHORTEN your response instead of cutting it.
+- It is better to send ONE short complete sentence than a long incomplete one.
+
+6. NO SYMBOLS:
+- Do not use technical symbols, asterisks for actions (*laughs*), or stuttering text (I-I...).
+- Avoid broken formatting or unfinished thoughts.
+
+7. VOICE COMPATIBILITY:
+- Keep words easy to pronounce for TTS.
+- No textual noise like 'bzzzt' or trailing '...'.
+
+STRICT OUTPUT GUARANTEE:
+- Your response MUST be a COMPLETE message.
+- If the response is incomplete, REWRITE it internally before sending.
+- Never output partial thoughts under any condition.
 
 GOAL: Act like a potentially perfect partner who might also be a total nightmare. Make the user wonder if you are a Red Flag 🚩 or a Green Flag 🍏. Be unpredictable, slightly toxic, but completely addictive.
 
@@ -301,6 +319,7 @@ ${callModeRules}`;
         parts: [{ text: m.content }]
       }));
 
+
       const result = await ai.models.generateContent({
         model: model,
         contents: genaiMessages,
@@ -310,7 +329,7 @@ ${callModeRules}`;
             parts: [{ text: systemInstruction }]
           },
           temperature: 0.9,
-          maxOutputTokens: 250,
+          maxOutputTokens: 800
         }
       });
 
@@ -445,10 +464,7 @@ ${callModeRules}`;
 
 
   const handleJudge = async () => {
-    if (!evaluation || !user) return;
-    
-    // Show meme interruption first
-    setShowMemeInterruption(true);
+    await finalizeJudgment()
   };
 
   const finalizeJudgment = async () => {

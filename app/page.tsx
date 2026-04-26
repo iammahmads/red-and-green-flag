@@ -9,11 +9,13 @@ import { db } from '@/lib/firebase';
 import { handleFirestoreError, OperationType } from '@/lib/firestore-utils';
 import Onboarding from '@/components/Onboarding';
 import JudgmentalFace from '@/components/JudgmentalFace';
+import AuthScreen from '@/components/AuthScreen';
 import { AnimatePresence } from 'motion/react';
 
 import { ai } from '@/lib/gemini';
+import { auth as firebaseAuth } from '@/lib/firebase';
 
-const model = 'gemini-3-flash-preview'
+const model = 'gemini-flash-latest'
 
 export default function Home() {
   const { user, profile, loading } = useAuth();
@@ -33,7 +35,7 @@ export default function Home() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <h1 className="text-4xl font-bangers text-white meme-border animate-pulse tracking-widest">
+        <h1 className="text-4xl font-bangers text-white meme-border animate-pulse tracking-widest text-center px-4">
           SNOOPING ON YOUR CRUSH...
         </h1>
       </div>
@@ -51,11 +53,26 @@ export default function Home() {
         <p className="text-xl md:text-2xl font-bold max-w-lg mb-8 text-white drop-shadow-md">
           Find out if your crush is &quot;the one&quot; or just another mistake waiting to happen. AI simulates them, judges them, and gives you the brutal truth. 
         </p>
+        <AuthScreen onSuccess={() => {}} />
+      </main>
+    );
+  }
+
+  // Verification step for email/pass users
+  if (user && !user.emailVerified) {
+    return (
+      <main className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+        <h1 className="text-5xl font-bangers text-yellow-300 mb-8">VERIFY YOURSELF 🕵️</h1>
+        <AuthScreen 
+          onSuccess={() => window.location.reload()} 
+          initialMode="verify" 
+          initialEmail={user.email || ''} 
+        />
         <button 
-          onClick={signInWithGoogle}
-          className="bg-black text-white font-bangers text-3xl py-4 px-8 rounded-xl border-4 border-white shadow-[8px_8px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-all"
+          onClick={() => firebaseAuth.signOut()}
+          className="mt-8 font-bold underline text-white"
         >
-          LOG IN TO EXPOSE THEM 🕵️‍♂️
+          LOG OUT & TRY AGAIN
         </button>
       </main>
     );

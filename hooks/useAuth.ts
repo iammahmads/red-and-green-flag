@@ -37,7 +37,8 @@ export function useAuth() {
              await setDoc(userRef, {
                email: currentUser.email || '',
                name: currentUser.displayName || 'Unknown Meme Lord',
-               createdAt: serverTimestamp()
+               createdAt: serverTimestamp(),
+               updatedAt: serverTimestamp()
              });
           }
         } catch (err) {

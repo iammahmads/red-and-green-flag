@@ -62,7 +62,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && 
                     isValidId(checkId) && 
                     isValidCheckForCreate(incoming()) &&
-                    exists(/databases/$(database)/documents/users/$(request.auth.uid));
+                    request.auth.token.email_verified == true;
       allow update: if isSignedIn() && 
                     existing().userId == request.auth.uid && 
                     isValidId(checkId) && 
