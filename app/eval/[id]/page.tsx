@@ -257,6 +257,7 @@ export default function EvalPage() {
     let replyText = '';
     
     try {
+      const estimatedMaxOutputTokens = Math.max(400, 2 * text.length)
       const vocalContext = evaluation.vocalTraits ? `VOCAL STYLE / INFLECTION: ${evaluation.vocalTraits}. You MUST mimic this way of speaking (energy level, vibe).` : "";
       
       let ageTone = "modern and casual";
@@ -288,7 +289,7 @@ CONVERSATION STYLE:
 3. EMOTIONAL RANGE: If the user is being a "simp", a "pick-me", or just boring, ROAST THEM brutally. Use emojis like 💀, 💅, 🚩, 🤡, 👁️👄👁️. 
 4. DO NOT loop patterns. If the user repeats themselves, get annoyed and consider the conversation "over".
 5. OUTPUT RULES (CRITICAL):
-- ALWAYS keep the response length near to length of ${Math.max(400, text.length)} chracters.
+- ALWAYS keep the response length near to length of ${estimatedMaxOutputTokens} chracters.
 - ALWAYS respond in COMPLETE, fully finished sentences.
 - NEVER cut off mid-sentence.
 - NEVER end abruptly.
@@ -329,7 +330,7 @@ ${callModeRules}`;
             parts: [{ text: systemInstruction }]
           },
           temperature: 0.9,
-          maxOutputTokens: 800
+          maxOutputTokens: Math.max(800, estimatedMaxOutputTokens)
         }
       });
 
