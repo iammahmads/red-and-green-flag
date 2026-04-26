@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "age": { "type": "number" },
+        "gender": { "type": "string" },
+        "education": { "type": "string" },
+        "profession": { "type": "string" },
+        "likes": { "type": "string" },
+        "dislikes": { "type": "string" },
+        "preferredPartnerAttributes": { "type": "string" },
+        "onboarded": { "type": "boolean" },
+        "lastCheckDate": { "type": "string" },
+        "dailyCheckCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "name", "createdAt"]
+    },
+    "Evaluation": {
+      "title": "Evaluation",
+      "description": "A Red Flag / Green Flag evaluation session.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "targetName": { "type": "string" },
+        "targetGender": { "type": "string" },
+        "targetAge": { "type": "number" },
+        "targetOccupation": { "type": "string" },
+        "targetBio": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "completed"] },
+        "verdict": { "type": "string", "enum": ["red_flag", "green_flag", "pending"] },
+        "judgeFeedback": { "type": "string" },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "maxItems": 500
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "targetName", "targetGender", "targetAge", "targetOccupation", "targetBio", "status", "verdict", "messages", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stored user profiles"
+    },
+    "/checks/{checkId}": {
+      "schema": { "$ref": "#/entities/Evaluation" },
+      "description": "All red flag/green flag conversational evaluations"
+    }
+  }
+}

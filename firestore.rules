@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() { 
+      return request.auth != null && request.auth.token.email_verified == true; 
+    }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'name', 'createdAt']) &&
+             data.keys().size() <= 15 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.name is string && data.name.size() <= 100 &&
+             (!('age' in data) || (data.age is int && data.age >= 13 && data.age <= 120)) &&
+             (!('gender' in data) || (data.gender is string && data.gender.size() <= 50)) &&
+             (!('education' in data) || (data.education is string && data.education.size() <= 200)) &&
+             (!('profession' in data) || (data.profession is string && data.profession.size() <= 200)) &&
+             (!('likes' in data) || (data.likes is string && data.likes.size() <= 500)) &&
+             (!('dislikes' in data) || (data.dislikes is string && data.dislikes.size() <= 500)) &&
+             (!('preferredPartnerAttributes' in data) || (data.preferredPartnerAttributes is string && data.preferredPartnerAttributes.size() <= 1000)) &&
+             (!('onboarded' in data) || data.onboarded is bool) &&
+             (!('dailyCheckCount' in data) || data.dailyCheckCount is int) &&
+             (!('lastCheckDate' in data) || data.lastCheckDate is string) &&
+             data.createdAt == request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && 
+                    request.auth.uid == userId && 
+                    isValidId(userId) && 
+                    isValidUser(incoming());
+      allow update: if isSignedIn() && 
+                    request.auth.uid == userId && 
+                    isValidId(userId) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'name', 'age', 'gender', 'education', 'profession', 
+                      'likes', 'dislikes', 'preferredPartnerAttributes', 
+                      'onboarded', 'dailyCheckCount', 'lastCheckDate', 'updatedAt'
+                    ]) &&
+                    (!('name' in incoming()) || (incoming().name is string && incoming().name.size() <= 100)) &&
+                    (!('age' in incoming()) || (incoming().age is int && incoming().age >= 13 && incoming().age <= 120)) &&
+                    (!('gender' in incoming()) || (incoming().gender is string && incoming().gender.size() <= 50)) &&
+                    (!('education' in incoming()) || (incoming().education is string && incoming().education.size() <= 200)) &&
+                    (!('profession' in incoming()) || (incoming().profession is string && incoming().profession.size() <= 200)) &&
+                    (!('likes' in incoming()) || (incoming().likes is string && incoming().likes.size() <= 500)) &&
+                    (!('dislikes' in incoming()) || (incoming().dislikes is string && incoming().dislikes.size() <= 500)) &&
+                    (!('preferredPartnerAttributes' in incoming()) || (incoming().preferredPartnerAttributes is string && incoming().preferredPartnerAttributes.size() <= 1000)) &&
+                    (!('onboarded' in incoming()) || incoming().onboarded is bool) &&
+                    (!('dailyCheckCount' in incoming()) || incoming().dailyCheckCount is int) &&
+                    (!('lastCheckDate' in incoming()) || (incoming().lastCheckDate is string && incoming().lastCheckDate.size() <= 20)) &&
+                    (
+                      !incoming().diff(existing()).affectedKeys().hasAny(['updatedAt']) || 
+                      incoming().updatedAt == request.time
+                    );
+      allow list: if false;
+    }
+
+    function isValidCheckForCreate(data) {
+      return data.keys().hasAll(['userId', 'targetName', 'targetGender', 'targetAge', 'targetOccupation', 'targetBio', 'status', 'verdict', 'messages', 'createdAt', 'updatedAt']) &&
+             data.keys().size() <= 12 &&
+             data.userId == request.auth.uid &&
+             data.targetName is string && data.targetName.size() <= 100 &&
+             data.targetGender is string && data.targetGender.size() <= 50 &&
+             data.targetAge is int && data.targetAge >= 0 && data.targetAge <= 200 &&
+             data.targetOccupation is string && data.targetOccupation.size() <= 200 &&
+             data.targetBio is string && data.targetBio.size() <= 1000 &&
+             (!('vocalTraits' in data) || (data.vocalTraits is string && data.vocalTraits.size() <= 1000)) &&
+             data.status == 'active' &&
+             data.verdict == 'pending' &&
+             data.messages is list && data.messages.size() <= 500 &&
+             data.createdAt == request.time &&
+             data.updatedAt == request.time;
+    }
+
+    match /checks/{checkId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && 
+                    isValidId(checkId) && 
+                    isValidCheckForCreate(incoming()) &&
+                    exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      allow update: if isSignedIn() && 
+                    existing().userId == request.auth.uid && 
+                    isValidId(checkId) && 
+                    (
+                      (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'verdict', 'judgeFeedback', 'messages', 'updatedAt']) &&
+                       incoming().status in ['active', 'completed'] &&
+                       incoming().verdict in ['red_flag', 'green_flag', 'pending'] &&
+                       (!('judgeFeedback' in incoming().keys()) || (incoming().judgeFeedback is string && incoming().judgeFeedback.size() <= 5000)) &&
+                       incoming().messages is list && incoming().messages.size() <= 500 &&
+                       (!incoming().diff(existing()).affectedKeys().hasAny(['updatedAt']) || 
+                        incoming().updatedAt == request.time))
+                      ||
+                      (incoming().diff(existing()).affectedKeys().hasOnly(['messages', 'updatedAt']) &&
+                       incoming().messages is list && incoming().messages.size() <= 500 &&
+                       (!incoming().diff(existing()).affectedKeys().hasAny(['updatedAt']) || 
+                        incoming().updatedAt == request.time))
+                    ) && 
+                    existing().status != 'completed'; 
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+  }
+}
