@@ -15,7 +15,7 @@ import Image from 'next/image';
 import { ai } from '@/lib/gemini';
 import { Type, Modality } from '@google/genai';
 
-const model = 'gemini-3-flash-preview'
+const model = 'gemini-2.5-flash'
 
 export default function EvalPage() {
   const { id } = useParams();
@@ -373,7 +373,7 @@ ${callModeRules}
     }));
 
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: genaiMessages,
       config: {
         systemInstruction: {

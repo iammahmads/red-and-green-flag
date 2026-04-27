@@ -15,7 +15,7 @@ import { AnimatePresence } from 'motion/react';
 import { ai } from '@/lib/gemini';
 import { auth as firebaseAuth } from '@/lib/firebase';
 
-const model = 'gemini-3-flash-preview'
+const model = 'gemini-2.5-flash'
 
 export default function Home() {
   const { user, profile, loading } = useAuth();
