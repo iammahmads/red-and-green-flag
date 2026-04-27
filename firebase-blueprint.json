@@ -7,10 +7,18 @@
       "properties": {
         "email": { "type": "string" },
         "name": { "type": "string" },
+        "age": { "type": "number" },
+        "gender": { "type": "string" },
+        "education": { "type": "string" },
+        "profession": { "type": "string" },
+        "likes": { "type": "string" },
+        "dislikes": { "type": "string" },
+        "preferredPartnerAttributes": { "type": "string" },
         "onboarded": { "type": "boolean" },
         "lastCheckDate": { "type": "string" },
         "dailyCheckCount": { "type": "number" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["email", "name", "createdAt"]
     },

@@ -15,7 +15,7 @@ import Image from 'next/image';
 import { ai } from '@/lib/gemini';
 import { Type, Modality } from '@google/genai';
 
-const model = 'gemini-flash-latest'
+const model = 'gemini-3-flash-preview'
 
 export default function EvalPage() {
   const { id } = useParams();
@@ -43,7 +43,9 @@ export default function EvalPage() {
   const isCallModeRef = useRef(false);
   const callIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
+  const micAnalyserRef = useRef<AnalyserNode | null>(null);
+  const speakerAnalyserRef = useRef<AnalyserNode | null>(null);
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
   // Time tracking for Voice (5 min max)
@@ -78,17 +80,23 @@ export default function EvalPage() {
 
     const source = context.createBufferSource();
     source.buffer = audioBuffer;
+    currentSourceRef.current = source;
     
-    if (analyserRef.current) {
-       source.connect(analyserRef.current);
-       analyserRef.current.connect(context.destination);
+    if (speakerAnalyserRef.current) {
+       source.connect(speakerAnalyserRef.current);
+       speakerAnalyserRef.current.connect(context.destination);
     } else {
        source.connect(context.destination);
     }
     
     source.start();
     return new Promise((resolve) => {
-      source.onended = resolve;
+      source.onended = () => {
+          if (currentSourceRef.current === source) {
+              currentSourceRef.current = null;
+          }
+          resolve(null);
+      };
     });
   };
 
@@ -97,11 +105,19 @@ export default function EvalPage() {
     const cleanText = text.replace(/[*_~`]/g, '').replace(/([.?!])\1+/g, '$1').trim();
     if (!cleanText) return;
 
-    // 2. Determine voice based on gender
+    // 2. Determine voice based on gender and age
     const gender = evaluation?.targetGender?.toLowerCase() || 'other';
+    const age = evaluation?.targetAge || 25;
     let voiceName = 'Zephyr'; // Default/Fluid
-    if (gender === 'female') voiceName = 'Kore';
-    if (gender === 'male') voiceName = 'Fenrir';
+
+    if (gender === 'female') {
+      voiceName = age > 35 ? 'Zephyr' : 'Kore';
+    } else if (gender === 'male') {
+      voiceName = age > 35 ? 'Charon' : 'Puck';
+    } else {
+        // Non-binary or other: Zephyr is a good neutral/fluid choice
+        voiceName = 'Zephyr';
+    }
 
     setIsAiSpeaking(true);
     try {
@@ -132,9 +148,23 @@ export default function EvalPage() {
     }
   };
 
+  const stopSpeech = () => {
+    if (currentSourceRef.current) {
+      currentSourceRef.current.stop();
+      currentSourceRef.current = null;
+    }
+    setIsAiSpeaking(false);
+  };
+
   const enterCallMode = async () => {
       try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            } 
+          });
           // Initialize recorder
           if (!mediaRecorderRef.current || !mediaRecorderRef.current.stream.active) {
              mediaRecorderRef.current = new MediaRecorder(stream);
@@ -142,15 +172,30 @@ export default function EvalPage() {
           
           audioContextRef.current = new window.AudioContext();
           const source = audioContextRef.current.createMediaStreamSource(stream);
-          analyserRef.current = audioContextRef.current.createAnalyser();
-          analyserRef.current.fftSize = 256;
-          source.connect(analyserRef.current);
+          
+          micAnalyserRef.current = audioContextRef.current.createAnalyser();
+          micAnalyserRef.current.fftSize = 256;
+          
+          speakerAnalyserRef.current = audioContextRef.current.createAnalyser();
+          speakerAnalyserRef.current.fftSize = 256;
+
+          source.connect(micAnalyserRef.current);
+          // DO NOT connect micAnalyser to context.destination
           
           const updateLevel = () => {
-             if (!analyserRef.current) return;
-             const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-             analyserRef.current.getByteFrequencyData(dataArray);
-             const avg = dataArray.reduce((S, v) => S + v, 0) / dataArray.length;
+             let avg = 0;
+             if (micAnalyserRef.current || speakerAnalyserRef.current) {
+                const micData = new Uint8Array(micAnalyserRef.current?.frequencyBinCount || 0);
+                const spkData = new Uint8Array(speakerAnalyserRef.current?.frequencyBinCount || 0);
+                
+                if (micAnalyserRef.current) micAnalyserRef.current.getByteFrequencyData(micData);
+                if (speakerAnalyserRef.current) speakerAnalyserRef.current.getByteFrequencyData(spkData);
+                
+                const micAvg = micData.length > 0 ? micData.reduce((S, v) => S + v, 0) / micData.length : 0;
+                const spkAvg = spkData.length > 0 ? spkData.reduce((S, v) => S + v, 0) / spkData.length : 0;
+                
+                avg = Math.max(micAvg, spkAvg);
+             }
              setAudioLevel(avg);
              animationFrameRef.current = requestAnimationFrame(updateLevel);
           };
@@ -179,8 +224,7 @@ export default function EvalPage() {
   const endCallMode = (forceJudge = false) => {
       isCallModeRef.current = false;
       setIsCallMode(false);
-      window.speechSynthesis.cancel();
-      setIsAiSpeaking(false);
+      stopSpeech();
       if (callIntervalRef.current) clearInterval(callIntervalRef.current);
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       
@@ -240,126 +284,176 @@ export default function EvalPage() {
     await processUserMessage(currentText);
   };
 
-  const processUserMessage = async (text: string, isCall: boolean = false) => {
-    if (!evaluation) return null;
-    setIsSending(true);
+const processUserMessage = async (text: string, isCall: boolean = false) => {
+  if (!evaluation) return null;
+  setIsSending(true);
 
-    // Stop if 500 messages reached
-    if (evaluation.messages.length >= 498) {
-      setPunishmentMeme(true);
-      setTimeout(() => {
-        handleJudge();
-      }, 5000);
-      return null;
+  // Stop if 500 messages reached
+  if (evaluation.messages.length >= 498) {
+    setPunishmentMeme(true);
+    setTimeout(() => handleJudge(), 5000);
+    return null;
+  }
+
+  const newMessages = [...evaluation.messages, { role: 'user', content: text }];
+  let replyText = '';
+
+  try {
+    // -----------------------------
+    // 🧠 LENGTH CONTROL (CORE FIX)
+    // -----------------------------
+    const inputWordCount = text.trim().split(/\s+/).length;
+
+    // target length: 70% → 120% of input
+    const minWords = Math.max(6, Math.floor(inputWordCount * 0.7));
+    const maxWords = Math.max(12, Math.floor(inputWordCount * 1.2));
+
+    // token control (safe)
+    const maxOutputTokens = isCall ? 120 : Math.min(300, maxWords * 6);
+
+    // -----------------------------
+    const vocalContext = evaluation.vocalTraits
+      ? `VOCAL STYLE: ${evaluation.vocalTraits}. Mimic tone and energy.`
+      : "";
+
+    let ageTone = "modern and casual";
+    if (evaluation.targetAge < 20)
+      ageTone = "youthful, energetic, minimal slang";
+    if (evaluation.targetAge > 35)
+      ageTone = "mature, composed, articulate";
+
+    const callModeRules = isCall
+      ? `
+CALL MODE:
+- Keep response VERY SHORT
+- Max 1-2 sentences
+- Speak clearly and directly
+`
+      : "";
+
+    const systemInstruction = `
+You are roleplaying as ${evaluation.targetName}.
+
+PERSONALITY:
+- Flirty, sarcastic, slightly toxic
+- High-value, tests the user
+- Unpredictable but engaging
+
+TONE: ${ageTone}
+${vocalContext}
+
+RESPONSE LENGTH RULE (VERY IMPORTANT):
+- Match the user's message length naturally
+- Target between ${minWords} and ${maxWords} words
+- You MAY go slightly shorter if it feels natural
+- NEVER be excessively long
+
+OUTPUT RULES:
+- Always complete sentences
+- Never cut mid-sentence
+- Always end with punctuation
+- If running out of space, shorten response instead
+
+STYLE:
+- Be human, emotional, reactive
+- Ask questions occasionally
+- Use Gen-Z humor naturally (not forced)
+
+${callModeRules}
+`;
+
+    // -----------------------------
+    // 🚀 LIMIT CONTEXT (IMPORTANT)
+    // -----------------------------
+    const trimmedMessages = newMessages.slice(-20);
+
+    const genaiMessages = trimmedMessages.map((m: any) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }));
+
+    const result = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: genaiMessages,
+      config: {
+        systemInstruction: {
+          role: 'system',
+          parts: [{ text: systemInstruction }]
+        },
+        temperature: 0.7,
+        maxOutputTokens
+      }
+    });
+
+    let responseText = result.text;
+    if (!responseText) throw new Error("No response from AI");
+
+    // -----------------------------
+    // 🛡️ HARD SAFETY FIX
+    // -----------------------------
+    replyText = responseText.trim();
+
+    // ensure proper ending
+    if (!/[.!?]$/.test(replyText)) {
+      replyText = replyText.replace(/[,;:\s]+$/, '') + '.';
     }
 
-    const newMessages = [...evaluation.messages, { role: 'user', content: text }];
-    let replyText = '';
-    
-    try {
-      const estimatedMaxOutputTokens = Math.max(400, 2 * text.length)
-      const vocalContext = evaluation.vocalTraits ? `VOCAL STYLE / INFLECTION: ${evaluation.vocalTraits}. You MUST mimic this way of speaking (energy level, vibe).` : "";
-      
-      let ageTone = "modern and casual";
-      if (evaluation.targetAge < 20) ageTone = "youthful, uses common modern slang naturally but SPARINGLY. Do not use 'brainrot' vocabulary like 'skibidi' or 'rizz' constantly. Stay high energy.";
-      if (evaluation.targetAge > 35) ageTone = "mature, poised, uses full sentences. Casual but articulate. Avoids modern teen slang.";
+    // enforce length bounds softly
+    const words = replyText.split(/\s+/);
 
-      const callModeRules = isCall ? `
-8. CALL MODE: You are currently on a voice call. BE EXTREMELY CONCISE. Get straight to the point. 
-9. Speak clearly. Avoid rambling or long-winded sentences. Use simple, direct language. One sentence is preferred, two max.` : "";
-
-      const systemInstruction = `You are roleplaying as: ${evaluation.targetName}. 
-Age: ${evaluation.targetAge}
-Gender: ${evaluation.targetGender}
-Occupation: ${evaluation.targetOccupation}
-Background/Bio: "${evaluation.targetBio}"
-
-CHARACTER PERSONALITY (DATING-SIM MODE):
-- You are SMARTER than you let on. You notice patterns. You are high-value and QUESTIONABLE.
-- You are currently DATING the user. Be flirtatious, but also CHALLENGING and testing them.
-- You are NOT an AI assistant. You have secrets, past relationships, and specific "icks".
-- Your tone is ${ageTone}. 
-- You use modern Gen-Z internet humor naturally. You are sarcastic, slightly unhinged, and very opinionated.
-- You have "Main Character Energy". If the user isn't matching your energy, call them out.
-- ${vocalContext}
-
-CONVERSATION STYLE:
-1. BE HUMAN: Use casual phrasing, internal contradictions, and emotional reactions. 
-2. QUESTION EVERYTHING: Don't just answer; ask the user things to test their vibe. Be a bit mysterious and pushy.
-3. EMOTIONAL RANGE: If the user is being a "simp", a "pick-me", or just boring, ROAST THEM brutally. Use emojis like 💀, 💅, 🚩, 🤡, 👁️👄👁️. 
-4. DO NOT loop patterns. If the user repeats themselves, get annoyed and consider the conversation "over".
-5. OUTPUT RULES (CRITICAL):
-- ALWAYS keep the response length near to length of ${estimatedMaxOutputTokens} chracters.
-- ALWAYS respond in COMPLETE, fully finished sentences.
-- NEVER cut off mid-sentence.
-- NEVER end abruptly.
-- ALWAYS end with proper punctuation (., !, or ?).
-- If you are about to run out of space, SHORTEN your response instead of cutting it.
-- It is better to send ONE short complete sentence than a long incomplete one.
-
-6. NO SYMBOLS:
-- Do not use technical symbols, asterisks for actions (*laughs*), or stuttering text (I-I...).
-- Avoid broken formatting or unfinished thoughts.
-
-7. VOICE COMPATIBILITY:
-- Keep words easy to pronounce for TTS.
-- No textual noise like 'bzzzt' or trailing '...'.
-
-STRICT OUTPUT GUARANTEE:
-- Your response MUST be a COMPLETE message.
-- If the response is incomplete, REWRITE it internally before sending.
-- Never output partial thoughts under any condition.
-
-GOAL: Act like a potentially perfect partner who might also be a total nightmare. Make the user wonder if you are a Red Flag 🚩 or a Green Flag 🍏. Be unpredictable, slightly toxic, but completely addictive.
-
-${callModeRules}`;
-
-
-      const genaiMessages = newMessages.map((m: any) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
-
-
-      const result = await ai.models.generateContent({
-        model: model,
-        contents: genaiMessages,
-        config: {
-          systemInstruction: {
-            role: 'system',
-            parts: [{ text: systemInstruction }]
-          },
-          temperature: 0.9,
-          maxOutputTokens: Math.max(800, estimatedMaxOutputTokens)
-        }
-      });
-
-      const responseText = result.text;
-      if (!responseText) throw new Error("No response from AI");
-
-      replyText = responseText;
-      const updatedMessages = [...newMessages, { role: 'assistant', content: replyText }];
-      
-      await updateDoc(doc(db, 'checks', id as string), {
-        messages: updatedMessages,
-        updatedAt: serverTimestamp()
-      });
-
-    } catch (err) {
-      console.error(err);
-      alert("The AI got nervous. Try again.");
-    } finally {
-      setIsSending(false);
+    if (words.length > maxWords) {
+      replyText = words.slice(0, maxWords).join(' ');
+      if (!/[.!?]$/.test(replyText)) replyText += '.';
     }
-    
-    return replyText;
-  };
+
+    if (words.length < minWords) {
+      // allow shorter (natural), but avoid too short
+      if (words.length < 4) {
+        replyText = "You're being way too vague, say that properly.";
+      }
+    }
+
+    const updatedMessages = [
+      ...newMessages,
+      { role: 'assistant', content: replyText }
+    ];
+
+    await updateDoc(doc(db, 'checks', id as string), {
+      messages: updatedMessages,
+      updatedAt: serverTimestamp()
+    });
+
+  } catch (err) {
+    console.error(err);
+    alert("The AI got nervous. Try again.");
+  } finally {
+    setIsSending(false);
+  }
+
+  return replyText;
+};
 
   const startRecording = async () => {
+    stopSpeech();
     try {
       if (!mediaRecorderRef.current || !mediaRecorderRef.current.stream.active) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          } 
+        });
+        
+        // Try to use a high-quality codec if available
+        const options = {
+          mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+            ? 'audio/webm;codecs=opus' 
+            : 'audio/webm',
+          audioBitsPerSecond: 64000
+        };
+        
+        const mediaRecorder = new MediaRecorder(stream, options);
         mediaRecorderRef.current = mediaRecorder;
       }
       
@@ -372,7 +466,7 @@ ${callModeRules}`;
 
       mediaRecorder.onstop = async () => {
         if (audioChunksRef.current.length === 0) return;
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
         await handleAudioUpload(audioBlob);
         
         // Stop stream if NOT in call mode
@@ -425,12 +519,12 @@ ${callModeRules}`;
       const base64Audio = await base64Promise;
 
       const result = await ai.models.generateContent({
-        model: model,
+        model: "gemini-3-flash-preview",
         contents: [
           {
             role: 'user',
             parts: [
-              { text: "STRICT TRANSCRIPTION: Listen to this audio and write down EXACTLY what is said. 1. Do NOT summarize. 2. Include fillers like 'um' or 'like' only if they are heavy. 3. If it's pure slang, transcribe it as is. 4. If the audio is just background noise or silent, output exactly '...'. 5. NO meta-comments like 'I hear music'." },
+              { text: "Transcribe this audio EXACTLY. Only output the spoken words. If it's silent or just noise, output '...'. Do not add any notes, intros, or summaries." },
               {
                  inlineData: {
                     data: base64Audio,
@@ -441,7 +535,7 @@ ${callModeRules}`;
           }
         ],
         config: {
-          temperature: 0.1, // Low temperature for high accuracy transcription
+          temperature: 0,
         }
       });
 
@@ -626,11 +720,22 @@ Their preferred partner traits: ${userProfile.preferredPartnerAttributes}.
                   onTouchStart={startRecording}
                   onTouchEnd={stopRecording}
                   disabled={isSending || isAiSpeaking}
-                  className={`w-32 h-32 rounded-full border-4 border-white flex justify-center items-center ${isRecording ? 'bg-red-600 animate-pulse' : 'bg-transparent'} disabled:opacity-50 transition-all`}
+                  className={`w-32 h-32 rounded-full border-4 border-white flex justify-center items-center ${isRecording ? 'bg-red-600' : 'bg-transparent'} disabled:opacity-50 transition-all relative`}
+                  style={{
+                     transform: isRecording ? `scale(${1 + (audioLevel / 255) * 0.4})` : 'scale(1)'
+                  }}
                >
-                   <Mic size={48} />
+                   <Mic size={48} className={isRecording ? 'animate-bounce' : ''} />
+                   {isRecording && (
+                     <div 
+                       className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-50"
+                       style={{ transform: `scale(${1 + (audioLevel / 255) * 2})` }}
+                     />
+                   )}
                </button>
-               <p className="font-bangers text-2xl">HOLD TO {isRecording ? 'RECORDING' : 'SPILL TEA'}</p>
+               <p className="font-bangers text-2xl animate-pulse">
+                   {isRecording ? (audioLevel > 10 ? 'SENDING VIBES...' : 'SPELL IT OUT!') : 'HOLD TO SPILL TEA'}
+               </p>
 
                <button onClick={() => endCallMode(false)} className="mt-8 bg-red-600 text-white font-bangers text-3xl px-8 py-4 rounded-xl border-4 border-white hover:bg-red-700 transition-colors">
                   HANG UP
