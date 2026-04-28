@@ -1,5 +1,5 @@
 {
-  "name": "Red Flag / Green Flag",
+  "name": "Red Green Flag",
   "description": "A meme-style AI dating analyzer where an AI simulates your crush and a Judge AI gives you the ultimate Red Flag or Green Flag verdict.",
   "requestFramePermissions": [
     "microphone"

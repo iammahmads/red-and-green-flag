@@ -111,19 +111,27 @@ export default function EvalPage() {
     let voiceName = 'Zephyr'; // Default/Fluid
 
     if (gender === 'female') {
-      voiceName = age > 35 ? 'Zephyr' : 'Kore';
+      voiceName = age > 40 ? 'Zephyr' : 'Kore';
     } else if (gender === 'male') {
-      voiceName = age > 35 ? 'Charon' : 'Puck';
+      // Use Puck and Fenrir which are distinctly human-friendly for male
+      voiceName = age > 40 ? 'Fenrir' : 'Puck';
     } else {
-        // Non-binary or other: Zephyr is a good neutral/fluid choice
+        // Non-binary or other
         voiceName = 'Zephyr';
     }
+
+    // Embed personalized tone into the TTS prompt - keeping it extremely concise
+    const toneDirective = evaluation?.vocalTraits 
+      ? `Speak affectionately and warmly: `
+      : `Speak cheerfully and conversationally: `;
+      
+    const ttsText = toneDirective + cleanText;
 
     setIsAiSpeaking(true);
     try {
       const response = await ai.models.generateContent({
         model: "gemini-3.1-flash-tts-preview",
-        contents: [{ parts: [{ text: cleanText }] }],
+        contents: [{ parts: [{ text: ttsText }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -302,14 +310,9 @@ const processUserMessage = async (text: string, isCall: boolean = false) => {
     // -----------------------------
     // 🧠 LENGTH CONTROL (CORE FIX)
     // -----------------------------
-    const inputWordCount = text.trim().split(/\s+/).length;
-
-    // target length: 70% → 120% of input
-    const minWords = Math.max(6, Math.floor(inputWordCount * 0.7));
-    const maxWords = Math.max(12, Math.floor(inputWordCount * 1.2));
-
+    
     // token control (safe)
-    const maxOutputTokens = isCall ? 120 : Math.min(300, maxWords * 6);
+    const maxOutputTokens = isCall ? 150 : 300;
 
     // -----------------------------
     const vocalContext = evaluation.vocalTraits
@@ -329,30 +332,30 @@ CALL MODE:
 - Max 1-2 sentences
 - Speak clearly and directly
 `
-      : "";
+      : `
+TEXT CHAT MODE:
+- Keep responses concise, no more than 1 to 3 sentences.
+- Be conversational and engaging.
+      `;
 
     const systemInstruction = `
 You are roleplaying as ${evaluation.targetName}.
 
 PERSONALITY:
-- Flirty, sarcastic, slightly toxic
-- High-value, tests the user
-- Unpredictable but engaging
+- Friendly, witty, and engaging
+- Genuine, shows actual interest but keeps it playful
+- Conversational and human-like
 
 TONE: ${ageTone}
 ${vocalContext}
 
 RESPONSE LENGTH RULE (VERY IMPORTANT):
-- Match the user's message length naturally
-- Target between ${minWords} and ${maxWords} words
-- You MAY go slightly shorter if it feels natural
 - NEVER be excessively long
 
 OUTPUT RULES:
 - Always complete sentences
 - Never cut mid-sentence
 - Always end with punctuation
-- If running out of space, shorten response instead
 
 STYLE:
 - Be human, emotional, reactive
@@ -365,7 +368,11 @@ ${callModeRules}
     // -----------------------------
     // 🚀 LIMIT CONTEXT (IMPORTANT)
     // -----------------------------
-    const trimmedMessages = newMessages.slice(-20);
+    let trimmedMessages = newMessages.slice(-20);
+    // Ensure the first message is from the user to avoid Gemini API errors
+    if (trimmedMessages.length > 0 && trimmedMessages[0].role === 'assistant') {
+       trimmedMessages.shift();
+    }
 
     const genaiMessages = trimmedMessages.map((m: any) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
@@ -373,7 +380,7 @@ ${callModeRules}
     }));
 
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
       contents: genaiMessages,
       config: {
         systemInstruction: {
@@ -398,20 +405,7 @@ ${callModeRules}
       replyText = replyText.replace(/[,;:\s]+$/, '') + '.';
     }
 
-    // enforce length bounds softly
-    const words = replyText.split(/\s+/);
-
-    if (words.length > maxWords) {
-      replyText = words.slice(0, maxWords).join(' ');
-      if (!/[.!?]$/.test(replyText)) replyText += '.';
-    }
-
-    if (words.length < minWords) {
-      // allow shorter (natural), but avoid too short
-      if (words.length < 4) {
-        replyText = "You're being way too vague, say that properly.";
-      }
-    }
+    // Removed word truncator to allow natural endings
 
     const updatedMessages = [
       ...newMessages,

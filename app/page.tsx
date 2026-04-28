@@ -225,7 +225,7 @@ export default function Home() {
       </header>
 
       <div className="bg-white rounded-3xl p-8 border-4 border-black shadow-[12px_12px_0px_rgba(0,0,0,1)]">
-        <h2 className="text-4xl font-bangers text-center mb-6">WHO WE JUDGING TODAY? 👀</h2>
+        <h2 className="text-4xl font-bangers text-center mb-6">WHO IS WITH US TODAY? 👀</h2>
         <form onSubmit={startEvaluation} className="flex flex-col gap-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>

@@ -15,8 +15,8 @@ const comic = Comic_Neue({
 });
 
 export const metadata: Metadata = {
-  title: 'Red Flag / Green Flag',
-  description: 'AI Dating Analyzer - Meme Style',
+  title: 'Red Green Flag',
+  description: 'AI Person Analyzer - Meme Style',
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
