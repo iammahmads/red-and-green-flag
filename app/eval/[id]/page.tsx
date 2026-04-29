@@ -312,7 +312,7 @@ const processUserMessage = async (text: string, isCall: boolean = false) => {
     // -----------------------------
     
     // token control (safe)
-    const maxOutputTokens = isCall ? 150 : 300;
+    const maxOutputTokens = 800;
 
     // -----------------------------
     const vocalContext = evaluation.vocalTraits
@@ -400,9 +400,14 @@ ${callModeRules}
     // -----------------------------
     replyText = responseText.trim();
 
-    // ensure proper ending
+    // ensure proper ending (fallback)
     if (!/[.!?]$/.test(replyText)) {
-      replyText = replyText.replace(/[,;:\s]+$/, '') + '.';
+      const match = replyText.match(/.*[.!?]/);
+      if (match) {
+        replyText = match[0];
+      } else {
+        replyText = replyText.replace(/[,;:\s]+$/, '') + '.';
+      }
     }
 
     // Removed word truncator to allow natural endings
