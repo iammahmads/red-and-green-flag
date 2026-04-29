@@ -10,6 +10,7 @@ import { handleFirestoreError, OperationType } from '@/lib/firestore-utils';
 import Onboarding from '@/components/Onboarding';
 import JudgmentalFace from '@/components/JudgmentalFace';
 import AuthScreen from '@/components/AuthScreen';
+import TermsScreen from '@/components/TermsScreen';
 import { AnimatePresence } from 'motion/react';
 
 import { ai } from '@/lib/gemini';
@@ -83,6 +84,11 @@ export default function Home() {
     return <Onboarding user={user} profile={profile || {}} onCancel={profile?.onboarded ? () => setIsEditingProfile(false) : undefined} />;
   }
 
+  // Render terms screen if they haven't accepted terms
+  if (!profile.acceptedTerms) {
+    return <TermsScreen user={user} />;
+  }
+
   const startEvaluation = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!targetName.trim() || !targetAge || !targetOccupation.trim()) {
@@ -96,7 +102,7 @@ export default function Home() {
     const userDailyCount = profile.lastCheckDate === today ? (profile.dailyCheckCount || 0) : 0;
     
     // Show punishment if they've hit the limit and haven't dismissed it yet in this session
-    if (userDailyCount >= 3 && !hasDismissedPunishment) {
+    if (userDailyCount >= 1 && !hasDismissedPunishment) {
       setShowPunishment(true);
       setHasDismissedPunishment(true); // Don't show it again after this dismissal
       return;

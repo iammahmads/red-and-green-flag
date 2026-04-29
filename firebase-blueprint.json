@@ -15,6 +15,7 @@
         "dislikes": { "type": "string" },
         "preferredPartnerAttributes": { "type": "string" },
         "onboarded": { "type": "boolean" },
+        "acceptedTerms": { "type": "boolean" },
         "lastCheckDate": { "type": "string" },
         "dailyCheckCount": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" },

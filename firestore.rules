@@ -23,6 +23,7 @@ service cloud.firestore {
              (!('dislikes' in data) || (data.dislikes is string && data.dislikes.size() <= 1000)) &&
              (!('preferredPartnerAttributes' in data) || (data.preferredPartnerAttributes is string && data.preferredPartnerAttributes.size() <= 3000)) &&
              (!('onboarded' in data) || data.onboarded is bool) &&
+             (!('acceptedTerms' in data) || data.acceptedTerms is bool) &&
              (!('dailyCheckCount' in data) || data.dailyCheckCount is number) &&
              (!('lastCheckDate' in data) || (data.lastCheckDate is string && data.lastCheckDate.size() <= 20)) &&
              (!('updatedAt' in data) || (data.updatedAt == request.time)) &&
@@ -38,7 +39,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && 
                     request.auth.uid == userId && 
                     isValidId(userId) && 
-                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'age', 'gender', 'education', 'profession', 'likes', 'dislikes', 'preferredPartnerAttributes', 'onboarded', 'dailyCheckCount', 'lastCheckDate', 'updatedAt']) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'age', 'gender', 'education', 'profession', 'likes', 'dislikes', 'preferredPartnerAttributes', 'onboarded', 'acceptedTerms', 'dailyCheckCount', 'lastCheckDate', 'updatedAt']) &&
                     (!('name' in incoming()) || (incoming().name is string && incoming().name.size() <= 100)) &&
                     (!('age' in incoming()) || (incoming().age is number && incoming().age >= 13 && incoming().age <= 120)) &&
                     (!('gender' in incoming()) || (incoming().gender is string && incoming().gender.size() <= 50)) &&
@@ -48,6 +49,7 @@ service cloud.firestore {
                     (!('dislikes' in incoming()) || (incoming().dislikes is string && incoming().dislikes.size() <= 1000)) &&
                     (!('preferredPartnerAttributes' in incoming()) || (incoming().preferredPartnerAttributes is string && incoming().preferredPartnerAttributes.size() <= 3000)) &&
                     (!('onboarded' in incoming()) || incoming().onboarded is bool) &&
+                    (!('acceptedTerms' in incoming()) || incoming().acceptedTerms is bool) &&
                     (!('dailyCheckCount' in incoming()) || incoming().dailyCheckCount is number) &&
                     (!('lastCheckDate' in incoming()) || (incoming().lastCheckDate is string && incoming().lastCheckDate.size() <= 20)) &&
                     (!('updatedAt' in incoming()) || incoming().updatedAt == request.time);

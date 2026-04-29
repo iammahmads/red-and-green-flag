@@ -30,6 +30,26 @@ export default function EvalPage() {
   const [isJudging, setIsJudging] = useState(false);
   const [showMemeInterruption, setShowMemeInterruption] = useState(false);
   const [punishmentMeme, setPunishmentMeme] = useState(false);
+  const [punishmentCountdown, setPunishmentCountdown] = useState<number | null>(null);
+
+  const triggerPunishment = () => {
+    setPunishmentMeme(true);
+    setPunishmentCountdown(5);
+  };
+
+  useEffect(() => {
+    if (punishmentMeme && punishmentCountdown !== null) {
+      if (punishmentCountdown > 0) {
+        const timer = setTimeout(() => setPunishmentCountdown(c => c !== null ? c - 1 : null), 1000);
+        return () => clearTimeout(timer);
+      } else if (punishmentCountdown === 0) {
+        const tm = setTimeout(() => {
+           handleJudge();
+        }, 0);
+        return () => clearTimeout(tm);
+      }
+    }
+  }, [punishmentMeme, punishmentCountdown]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [isCallMode, setIsCallMode] = useState(false);
   const [callTimeLeft, setCallTimeLeft] = useState(300); // 5 min
@@ -242,8 +262,7 @@ export default function EvalPage() {
       }
       
       if (forceJudge) {
-          setPunishmentMeme(true);
-          setTimeout(() => handleJudge(), 5000);
+          triggerPunishment();
       }
   };
 
@@ -298,8 +317,7 @@ const processUserMessage = async (text: string, isCall: boolean = false) => {
 
   // Stop if 500 messages reached
   if (evaluation.messages.length >= 498) {
-    setPunishmentMeme(true);
-    setTimeout(() => handleJudge(), 5000);
+    triggerPunishment();
     return null;
   }
 
@@ -481,8 +499,7 @@ ${callModeRules}
         if (mediaRecorderRef.current?.state === 'recording') {
           stopRecording();
           if (!isCallModeRef.current) {
-             setPunishmentMeme(true);
-             setTimeout(() => handleJudge(), 5000);
+             triggerPunishment();
           }
         }
       }, MAX_VOICE_TIME);
@@ -557,12 +574,14 @@ ${callModeRules}
   };
 
 
-  const handleJudge = async () => {
+  async function handleJudge() {
     await finalizeJudgment()
-  };
+  }
 
-  const finalizeJudgment = async () => {
+  async function finalizeJudgment() {
     if (!user) return;
+    setPunishmentCountdown(null);
+    setPunishmentMeme(false);
     setIsJudging(true);
     setShowMemeInterruption(false);
     try {
@@ -674,6 +693,11 @@ Their preferred partner traits: ${userProfile.preferredPartnerAttributes}.
           <p className="text-white font-bold text-2xl mt-8 text-center animate-pulse">
             PUNISHMENT ACTIVATED. INITIATING FORCED JUDGMENT...
           </p>
+          {punishmentCountdown !== null && (
+             <div className="text-red-500 font-bangers text-8xl mt-4 animate-ping">
+               {punishmentCountdown}
+             </div>
+          )}
         </div>
       )}
       {isJudging && !punishmentMeme && (
