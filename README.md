@@ -1,20 +1,36 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Red Green Flag 🚩🍏
 
-# Run and deploy your AI Studio app
+A meme-style AI dating analyzer where an AI simulates your crush and a Judge AI gives you the ultimate Red Flag or Green Flag verdict.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/058e2c14-413d-4660-b2c3-809fcc1db69b
+- **AI Target Simulation**: Simulates a crush/dating prospect based on a profile you describe.
+- **Voice & Text Chat**: Talk to the simulated AI target using speech-to-text and text-to-speech, simulating a real call.
+- **Judge AI**: A brutal, unhinged "best friend" AI that roasts the target and gives a red flag/green flag verdict based on the conversation.
+- **Punishment System**: A meme punishment screen if the user talks too much or hits the daily usage limits.
+- **Voice Sample Analysis**: Upload an audio file and let Gemini analyze the voice traits for the simulation.
+- **Authentication & Persistence**: Powered by Firebase Auth and Firestore to track user profiles and evaluation limits.
 
-## Run Locally
+## Screenshots
 
-**Prerequisites:**  Node.js
+### Home & Authentication
+![Home Screen](https://picsum.photos/seed/redgreenflag1/800/400)
 
+### Dashboard
+![Dashboard Screen](https://picsum.photos/seed/redgreenflag2/800/400)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### Chat Mode
+![Chat Mode](https://picsum.photos/seed/redgreenflag3/800/400)
+
+### Voice Call Mode
+![Voice Call](https://picsum.photos/seed/redgreenflag4/800/400)
+
+### The AI Verdict
+![AI Verdict](https://picsum.photos/seed/redgreenflag5/800/400)
+
+## Tech Stack
+
+- **Frontend**: Next.js (App Router), React, Tailwind CSS
+- **AI Services**: Google Gemini API (`@google/genai`)
+- **Backend & Storage**: Firebase Authentication, Cloud Firestore
+- **Animations**: Motion (Framer Motion)
